@@ -13,8 +13,11 @@ async function connectToWhatsApp() {
     
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // हम खुद कस्टमाइज्ड प्रिंट करेंगे
-        logger: pino({ level: 'silent' }) // फालतू के लॉग्स बंद
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' }),
+        connectTimeoutMs: 60000, // सर्वर को कनेक्ट होने के लिए 60 सेकंड का समय दें
+        defaultQueryTimeoutMs: 0,
+        keepAliveIntervalMs: 30000
     });
 
     sock.ev.on('creds.update', saveCreds);
