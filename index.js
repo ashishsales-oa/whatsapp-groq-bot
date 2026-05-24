@@ -7,17 +7,26 @@ const app = express();
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const groq = new Groq({ apiKey: GROQ_API_KEY });
 
-// व्हाट्सएप क्लाइंट सेटअप
+// व्हाट्सएप क्लाइंट सेटअप (बिना सैंडबॉक्स एरर के चलाने के लिए)
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        headless: true,
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process'
+        ]
     }
 });
 
 // जब QR Code जनरेट हो, तो उसे Render के Logs में प्रिंट करो
 client.on('qr', (qr) => {
-    console.log('=== कृपया नीचे दिए गए QR कोड को अपने व्हाट्सएप से स्कैन करें ===');
+    console.log('\n=== कृपया नीचे दिए गए QR कोड को अपने व्हाट्सएप से स्कैन करें ===\n');
     qrcode.generate(qr, { small: true });
 });
 
@@ -62,5 +71,5 @@ client.initialize();
 
 // Render को जिंदा रखने के लिए एक छोटा सा डमी पोर्ट सर्वर
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Bot is running!'));
+app.get('/', (req, res) => res.send('Personal Bot is running!'));
 app.listen(PORT, () => console.log(`Dummy server running on port ${PORT}`));
