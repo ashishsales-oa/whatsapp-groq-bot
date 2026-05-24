@@ -12,18 +12,15 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
+        executablePath: '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome', // रेंडर का फिक्स क्रोम पाथ
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process'
+            '--disable-gpu'
         ]
     }
 });
-
 // जब QR Code जनरेट हो, तो उसे Render के Logs में प्रिंट करो
 client.on('qr', (qr) => {
     console.log('\n=== कृपया नीचे दिए गए QR कोड को अपने व्हाट्सएप से स्कैन करें ===\n');
