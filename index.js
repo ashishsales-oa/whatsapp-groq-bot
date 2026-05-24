@@ -44,14 +44,14 @@ app.post('/webhook', async (req, res) => {
                         },
                         { role: "user", content: msgText }
                     ],
-                    model: "llama3-8b-8192", 
+                    model: "llama-3.3-70b-versatile",
                 });
                 
                 const aiReply = chatCompletion.choices[0].message.content;
 
                 await axios({
                     method: 'POST',
-                    url: `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+                    url: `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`,
                     headers: { 
                         'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
                         'Content-Type': 'application/json'
