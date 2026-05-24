@@ -1,94 +1,66 @@
-const express = require('express');
-const axios = require('axios');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 const { Groq } = require('groq-sdk');
+const express = require('express');
 
 const app = express();
-app.use(express.json());
-
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "my_secret_token_123"; 
-
 const groq = new Groq({ apiKey: GROQ_API_KEY });
 
-app.get('/webhook', (req, res) => {
-    const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
-
-    if (mode && token === VERIFY_TOKEN) {
-        res.status(200).send(challenge);
-    } else {
-        res.sendStatus(403);
+// व्हाट्सएप क्लाइंट सेटअप
+const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
 
-app.post('/webhook', async (req, res) => {
-    res.sendStatus(200);
-    const body = req.body;
-    
-    // 🔍 जासूस लॉग: यह देखने के लिए कि क्या फेसबुक हमें कुछ भेज भी रहा है या नहीं
-    console.log("=== नया मैसेज आया है ===");
-    console.log(JSON.stringify(body, null, 2));
-    
-    if (body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
-        const message = body.entry[0].changes[0].value.messages[0];
-        const fromNumber = message.from; 
+// जब QR Code जनरेट हो, तो उसे Render के Logs में प्रिंट करो
+client.on('qr', (qr) => {
+    console.log('=== कृपया नीचे दिए गए QR कोड को अपने व्हाट्सएप से स्कैन करें ===');
+    qrcode.generate(qr, { small: true });
+});
+
+// जब बोट सफलतापूर्वक लॉगिन हो जाए
+client.on('ready', () => {
+    console.log('🚀 आपका पर्सनल व्हाट्सएप AI बोट अब पूरी तरह एक्टिव और लाइव है!');
+});
+
+// जब आपके नंबर पर कोई नया मैसेज आए
+client.on('message', async (msg) => {
+    // स्वयं के द्वारा भेजे गए मैसेजेस या ग्रुप मैसेजेस को इग्नोर करने के लिए
+    if (msg.fromMe || msg.from.includes('@g.us')) return;
+
+    console.log(`नया मैसेज आया: "${msg.body}" | भेजने वाला: ${msg.from}`);
+
+    try {
+        // Groq AI से जवाब मांगना
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [
+                { 
+                    role: "system", 
+                    content: "तुम मेरे पर्सनल व्हाट्सएप असिस्टेंट हो। जब लोग मुझे मैसेज करें, तो मेरी तरफ से बहुत ही विनम्रता, शॉर्ट और दोस्ताना अंदाज़ में हिंदी या हिंग्लिश में जवाब दो। बातचीत में इमोजी का उपयोग करो।" 
+                },
+                { role: "user", content: msg.body }
+            ],
+            model: "llama-3.3-70b-versatile",
+        });
+
+        const aiReply = chatCompletion.choices[0].message.content;
         
-        if (message.type === 'text') {
-            const msgText = message.text.body;
-            console.log(`मैसेज का टेक्स्ट है: "${msgText}" | भेजने वाले का नंबर: ${fromNumber}`);
+        // सामने वाले को आपकी तरफ से रिप्लाई भेजना
+        await msg.reply(aiReply);
+        console.log(`✅ AI ने जवाब भेज दिया: "${aiReply}"`);
 
-            try {
-                console.log("Groq AI को कॉल किया जा रहा है...");
-                const chatCompletion = await groq.chat.completions.create({
-                    messages: [
-                        { 
-                            role: "system", 
-                            content: "तुम एक बेहद मददगार और दोस्ताना WhatsApp बिज़नेस असिस्टेंट हो। ग्राहकों को हिंदी या हिंग्लिश में छोटे, सटीक और 2-3 वाक्यों में जवाब दो। बातचीत में सही जगह इमोजी का इस्तेमाल करो।" 
-                        },
-                        { role: "user", content: msgText }
-                    ],
-                    model: "llama-3.3-70b-versatile", 
-                });
-                
-                const aiReply = chatCompletion.choices[0].message.content;
-                console.log(`Groq AI का जवाब तैयार है: "${aiReply}"`);
-
-                console.log("अब इस जवाब को वापस व्हाट्सएप पर भेजा जा रहा है...");
-                const whatsappResponse = await axios({
-                    method: 'POST',
-                    url: `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`,
-                    headers: { 
-                        'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: fromNumber,
-                        type: "text",
-                        text: { body: aiReply }
-                    }
-                });
-
-                console.log("✅ बधाई हो! जवाब सफलतापूर्वक चला गया। फेसबुक का रिस्पॉन्स:", whatsappResponse.data);
-
-            } catch (error) {
-                console.error("❌ गड़बड़ हो गई! एरर की पूरी डिटेल नीचे है:");
-                if (error.response) {
-                    console.error("फेसबुक या Groq से आया असली एरर:", JSON.stringify(error.response.data, null, 2));
-                } else {
-                    console.error(error.message);
-                }
-            }
-        }
-    } else {
-        console.log("वेबहुक हिट तो हुआ, लेकिन यह किसी यूजर का नया टेक्स्ट मैसेज नहीं है।");
+    } catch (error) {
+        console.error('❌ Groq AI एरर:', error.message);
     }
 });
 
+// क्लाइंट शुरू करें
+client.initialize();
+
+// Render को जिंदा रखने के लिए एक छोटा सा डमी पोर्ट सर्वर
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.get('/', (req, res) => res.send('Bot is running!'));
+app.listen(PORT, () => console.log(`Dummy server running on port ${PORT}`));
